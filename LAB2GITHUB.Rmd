@@ -5,26 +5,99 @@ date: "2025-01-15"
 output: pdf_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+# Week 2 Lab for ESP106
+
+This document contains the solutions for Week 2 of the ESP106 lab assignment. The questions and solutions are structured according to the instructions provided.
+
+---
+
+## Chapter 8: Functions
+
+### **1) Write a function `f` that behaves like this:**
+The function `f` takes a name as input and returns a greeting.
+
+```{r}
+# Function definition
+f <- function(name) {
+  paste("hello", name, "how are you?", sep = " ")
+}
+
+# Testing the function
+f('Jim')
 ```
 
-## R Markdown
+## 2) Write a function 'sumOfSquares' that behaves like this:
+```{r}
+sumOfSquares <- function(vec) {
+    vec_mean <- mean(vec, na.rm = TRUE) #mean
+        deviations <- vec - vec_mean
+        squared_deviations <- deviations^2 #square the result
+    result <- sum(squared_deviations) #sum the results up
+        return(result)
+  }
+  
+  d <- c(1, 5, 2, 4, 6, 2, 4, 5) #test
+  sumOfSquares(d) 
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```
+## > d <- c(1,5,2,4,6,2,4,5)
+## > sumOfSquares(d)
+## [1] 21.875
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# To compute the "sum of squares", subtract the mean value of all numbers from each number. 
+# Square these numbers and sum them
 
-```{r cars}
-summary(cars)
+## 3) Bonus: Handle NA values in sumOfSquares
+
+```{r}
+sumOfSquares <- function(vec) {
+    if (any(is.na(vec))) { # this pat checks if there are any na's
+      warning("NA values found.")
+    }
+    
+    vec_mean <- mean(vec, na.rm = TRUE) 
+    deviations <- vec - vec_mean        
+    squared_deviations <- deviations^2 
+    result <- sum(squared_deviations, na.rm = TRUE) 
+    return(result)
+  }
+  
+  d <- c(1, 5, 2, 4, 6, 2, 4, 5)  # Test without NAs
+  sumOfSquares(d) # Should return 21.875
+  
+  d_with_na <- c(1, 5, 2, 4, 6, NA, 4, 5) 
+  sumOfSquares(d_with_na) 
 ```
 
-## Including Plots
+## 4) Write a for loop that adds the numbers 1 to 10
+##HINT: you will need one variable that loops through the numbers 1 to 10 and one that keeps count through each loop
+```{r}
+  total <- 0 
+    for (i in 1:10) { #for loip
+    total <- total + i # adding current number to total
+    print(paste("Adding", i, "to total. New total is:", total)) 
+  }
+    print(paste("The sum of numbers from 1 to 10 is:", total))
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+## 5) Write a for loop that adds the odd numbers between 1 and 10 
+
+```{r}
+    total_odd_result <- 0 # Initializing
+    
+    for (i in 1:10) { # for loop
+      if (i %% 2 != 0) { 
+        total_odd_result <- total_odd_result + i 
+        print(paste("Adding odd number", i, "to total. New total is:", total_odd_result)) 
+      }
+    }
+        print(paste("The sum of odd numbers from 1 to 10 is:", total_odd_result))
+
+```
+
+
+
+
+
