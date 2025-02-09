@@ -1,0 +1,153 @@
+---
+title: "LAB5_ESP106"
+author: "Hector Carvajal"
+date: "2025-02-03"
+output: pdf_document
+---
+
+```{r setup, echo=FALSE}
+require("knitr")
+#opts_knit$set(root.dir = ) #use this to set your working directory so knitr understands it. By default the working directory is the same folder as where this Rmd document is saved on your computer
+```
+
+## Lab 5
+
+### Due Tuesday Feb4th - Recommended to complete this before starting the midterm
+
+This lab we will look at some data from the plastic trash piced up during clean-up events around the world. I took this dataset from the Tidy Tuesday website. You can read the documentation [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-01-26/readme.md), including the references and description of the different column names.
+
+I have done some pre-processing of the data for you for this lab, to create two more easy-to-use dataframes.
+
+First read in the countrytotals.csv data frame
+```{r echo=FALSE}
+#read data
+country_totals <- read.csv("countrytotals.csv", stringsAsFactors = FALSE)
+head(country_totals)
+#checking the structure of the data
+str(country_totals)
+#checking the names of the columns included in this data
+colnames(country_totals)
+```
+
+Have a look at the data frame. Then column "total" gives the total number of pieces of plastic picked up in that country in 2020. The columns "num_events" and "volunteers" give the number of trash pick-up events and the number of volunteers in that country. We are going to use this to investigate where the plastic trash problem is worst.
+
+
+1. What 5 countries had the worst plastic problem as measured by the number of pieces of trash picked up?
+
+```{r}
+#descending order of total plastic pieces in each country
+country_totals_sorted <- country_totals[order(country_totals$total, decreasing = TRUE), ]
+
+#top 5 countries with the most plastic trash
+top_5_countries <- head(country_totals_sorted, 5)
+top_5_countries
+```
+
+**Answer:** The countries with the worst plastic pollution from least to most measured by individual plastic pieces collected by volunteers are Togo - 11994, India - 16973, Switzerland - 52277, Philippines - 55184, and Nigeria - 63253.
+
+2. Make a plot showing the distribution of volunteers across countries
+```{r}
+library(ggplot2)
+
+```
+
+```{r}
+library(scales)
+ggplot(country_totals, aes(x = reorder(country, volunteers), y = volunteers)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Number of Volunteers per Country",
+       x = "Country",
+       y = "Number of Volunteers") +
+#had to flip the coordinates given the names were overlapping 
+  coord_flip() +  
+  theme_minimal()
+
+
+```
+
+3. Notice that there is a lot of variation across countries in the number of volunteers involved in trash pickup. What problem might that cause for the interpretation of your answer to question 1?
+
+**Answer:** The problem with finding a variation of the amount of volunteers across countries is it could make it seem like some countries have worse polluted areas just because they have more volunteers collecting trash. This could make it appear that countries with fewer volunteers have less polluted areas. The ranking in question 1 may reflect volunteer efforts rather than actual pollution levels. 
+
+4. Add a column to the data frame creating a variable that should be more closely related to the presence of plastic pollution in the country
+
+```{r}
+#adding a column for plastic collected per event
+country_totals$plastic_per_event <- country_totals$total / country_totals$num_events
+country_totals
+
+
+
+```
+
+5. What 5 countries have the worst plastic pollution, as measured by this new variable?
+
+```{r}
+#data sorteed by plastic_per_event in descending order
+worst_polluted_countries <- country_totals[order(country_totals$plastic_per_event, decreasing = TRUE), ]
+
+#top 5 countries with the worst plastic pollution
+top_5_worst <- head(worst_polluted_countries, 5)
+top_5_worst
+
+
+```
+
+**Answer:** This time around, the five countries with the worst plastic pollution (from our new variable) from least to most are Ghana, El Savador, Germany, Burkina Faso and Togo.
+
+Now we will make a plot of the variation in the types of trash and how it differs around the world. Read in the continenttypes.csv data frame. This gives the breakdown of the different types of plastic collected on each continet in 2020 and the total number of pick up events.
+
+```{r}
+#read in the continent types.csv file
+continent_types <- read.csv("continenttypes.csv", stringsAsFactors = FALSE)
+head(continent_types)
+str(continent_types)
+colnames(continent_types)
+
+```
+
+6. Add a column to this data frame with a variable that captures the existence of different types of plastic trash, controlling for the intensity of the pick-up effort in different continent
+
+
+```{r}
+#adds column for total plastic collected per event
+continent_types$plastic_per_event <- continent_types$total / continent_types$events
+head(continent_types)
+
+```
+
+7. Make a plot using ggplot showing both the total amount and distribution of types of plastic picked up in each continent in the average pick-up event.
+
+Hint: Check out options in the [R graph gallery](https://www.r-graph-gallery.com)
+
+```{r}
+library(ggplot2)
+#stcakced bar plot
+ggplot(continent_types, aes(x = continent, y = plastic_per_event, fill = plastic_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  
+  scale_y_continuous(labels = scales::comma) +  #adding commas for large values
+  labs(title = "Total and Distribution of Plastic Types per Continent",
+       
+       
+       x = "Continent",
+       y = "Plastic Collected Per Event",
+       
+       fill = "Plastic Type") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  #online result of the code to rotate x-axis labels
+
+```
+
+8. Try uploading your R markdown file and plots to your Git Hub repository. Upload your Rmd and knitted PDF to Canvas
+
+
+
+
+
+
+
+
+
+
