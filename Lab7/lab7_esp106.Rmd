@@ -1,0 +1,480 @@
+---
+title: "LAB7"
+author: "Hector Carvajal"
+date: "2025-02-25"
+output: pdf_document
+---
+## Lab 7
+
+In this lab we will practice working with raster data, in this case in the context of climate models. I have given you 4 sets of data:
+
+1. Climate Model Data_Historic - this is a NetCDF file with output from a climate model. Data is monthly average air temperature for 1920-2005
+2. Climate Model Data_Future - this is a NetCDF file with climate model output for the period 2006-2080
+3. Observed Temp Data - this is gridded data based on weather station and satellite data. Data is monthly for 1991-2000
+4. Population data - gridded counts of population for a number of years
+
+The first part of the lab will compare modeled and observed climate data for major cities around the world. The second part of the lab will combine the population data and future climate data to project future changes in global temperature. 
+
+**Part 1**
+
+**1a.** Read in the historic climate model data as a SpatRaster. Use "TREFHT" (temperature at reference height) in the subds (sub-dataset) argument.
+
+
+```{r}
+list.files("/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Climate Model Data_Historic/")
+
+```
+
+```{r}
+library(terra)
+
+#file path
+nc_file <- "/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Climate Model Data_Historic/b.e11.B20TRC5CNBDRD.f09_g16.002.cam.h0.TREFHT.192001-200512.nc"
+file.exists(nc_file) #verifu it exists
+
+#read in NetCDF file as a spatraster using "TREFHT"(given in instructions)
+nc_raster <- rast(nc_file, subds = "TREFHT")
+print(nc_raster)
+
+```
+
+**1b.** Use ext() to see the longitude and latitude range of the SpatRaster you created. Note that the longitude goes form 0 to 360 (ish) instead of the more typical -180 to 180. This will cause a problem later on so use the rotate() function to change the longitude coordinates. Use extent again on the rotated object to check the longitude goes from -180 to 180 (ish)
+```{r}
+ext(nc_raster)
+
+```
+
+```{r}
+nc_raster_rotated <- rotate(nc_raster)
+ext(nc_raster_rotated)
+```
+
+**2a.** Use `rnaturalearth::ne_download()` function to get a sf object of major cities ("populated_places"). Use `vect` to coerce this to a SpatVector, and subset it to get just the 10 most populous cities based on 2020 population (POP2020 column)
+
+
+```{r}
+library(rnaturalearth)
+library(terra)  
+
+```
+
+
+```{r}
+#major cities as an sf object
+cities_sf <- ne_download(scale = 10, type = "populated_places", category = "cultural", returnclass = "sf")
+cities_vect <- vect(cities_sf)
+
+```
+
+
+```{r}
+#remove NA values before sorting (better cleaning habit for me)
+cities_vect_clean <- cities_vect[!is.na(cities_vect$POP2020), ]
+#sort by population
+cities_vect_sorted <- cities_vect_clean[order(cities_vect_clean$POP2020, decreasing = TRUE), ]
+#top 10 cities selected 
+top10_cities <- cities_vect_sorted[1:10, ]
+#had a hard time knowing if it worked so searched up how to display the cities and found that you can do so by a dataframe
+as.data.frame(top10_cities[, c("NAME", "POP2020")])
+
+```
+
+
+
+**2b.** Make a plot of the temperature data for January 1920 and overlay the 10 major cities.
+
+```{r}
+#January 1920 temperature data extracted 
+jan1920_temp <- nc_raster_rotated[[1]]
+plot(jan1920_temp, main = "Temperature in January 1920", col = terrain.colors(100))
+#overlay the 10 most populous cities
+points(top10_cities, col = "darkred", pch = 19, cex = 1.5)
+
+```
+
+**2c.** What about the plot gives you confidence this is actually showing temperature data from a January? What are the units of the temperature data?
+
+**Answer**
+
+I'm confident its displaying the correct temperatures for January because the green parts displayy the colder temperautres which is to be expected (winter temps) and warmer temperatures as you approach the southern hemisphere. Units are in Kelvin since the ranges are from ~230 to ~300. Wouldn't work for Celsius since it would be impossible for earth to handle.
+
+
+**3a.** Read in the observed temperature data as a SpatRaster, using "tmp" for the sub-dataset argument
+
+```{r}
+list.files("/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Observed Temp Data/")
+
+```
+
+
+
+
+```{r}
+#file path
+obs_temp_file <- "/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Observed Temp Data/cru_ts4.03.1991.2000.tmp.dat.nc"
+#observed temperature data as spatraster
+obs_temp_raster <- rast(obs_temp_file, subds = "tmp")
+print(obs_temp_raster)
+
+```
+
+
+**3b.** Note that this climate model data is for 1920-2005 but the observation data is only from 1991-2000. Subset the climate model data to just the years 1991-2000. Also change the units to match those of the observed climate data.
+```{r}
+#extracting time information from the climate model data
+time_info <- time(nc_raster_rotated)
+
+#converting the time values to years
+years <- as.numeric(format(time_info, "%Y"))
+#sub-setting the data to only include 1991-2000
+nc_raster_subset <- nc_raster_rotated[[years >= 1991 & years <= 2000]]
+nc_raster_celsius <- nc_raster_subset - 273.15 #unit conversion
+print(nc_raster_celsius)
+
+```
+
+4. Use terra::extract() to produce two data-frames, one with observed and one with modeled temperature values for each city. Change the units of the modeled data so they match the units of the observed data.
+
+```{r}
+library(terra)
+
+#extract observed and simulated temperature data
+city_obs <- terra::extract(obs_temp_raster, top10_cities)
+city_sim <- terra::extract(nc_raster_celsius, top10_cities)
+print(dim(city_obs))  
+print(dim(city_sim))
+head(city_obs)
+head(city_sim)
+
+
+```
+
+```{r}
+#this makes it so that the first column is only removed ONCE if it's named "ID"
+if ("ID" %in% colnames(city_obs)) {
+  city_obs <- city_obs[, -1]
+}
+if ("ID" %in% colnames(city_sim)) {
+  city_sim <- city_sim[, -1]
+}
+
+#transpose to fix row-column swap
+city_obs <- t(city_obs)
+city_sim <- t(city_sim)
+
+#data frame
+city_obs <- as.data.frame(city_obs)
+city_sim <- as.data.frame(city_sim)
+print(dim(city_obs))  
+print(dim(city_sim))
+print(colnames(city_obs))
+print(colnames(city_sim))
+
+```
+
+
+
+
+
+We have to do a bit of data-wrangling to compare modeled and observed temperature data for each city.
+
+**5a.** Add a column to both data-frames with the names of the cities using the NAME column from the city data frame
+
+
+```{r}
+#renaming the columns using city names
+colnames(city_obs) <- as.character(top10_cities$NAME)
+colnames(city_sim) <- as.character(top10_cities$NAME)
+print(colnames(city_obs))
+print(colnames(city_sim))
+
+```
+
+```{r}
+#adding the "time" column
+city_obs$time <- time(obs_temp_raster)
+city_sim$time <- time(nc_raster_celsius)
+
+#verifying the new dimensions
+print(dim(city_obs))  
+print(dim(city_sim))  
+print(colnames(city_obs))
+print(colnames(city_sim))
+
+
+head(city_obs)
+head(city_sim)
+
+```
+
+**5b.** Use pivot_longer() from the tidyr package to turn both data-frames into tidy data-frames, with one row for each unique city-month combination
+
+```{r}
+library(terra)
+library(tidyr)
+
+#extracts the observed and simulated temperature data
+city_obs <- terra::extract(obs_temp_raster, top10_cities)
+city_sim <- terra::extract(nc_raster_celsius, top10_cities)
+
+#remove the ID column
+if ("ID" %in% colnames(city_obs)) {
+  city_obs <- city_obs[, -1]
+}
+if ("ID" %in% colnames(city_sim)) {
+  city_sim <- city_sim[, -1]
+}
+
+city_obs <- t(city_obs)
+city_sim <- t(city_sim)
+
+#convert to data frame
+city_obs <- as.data.frame(city_obs)
+city_sim <- as.data.frame(city_sim)
+
+#rename the columns with city names
+colnames(city_obs) <- as.character(top10_cities$NAME)
+colnames(city_sim) <- as.character(top10_cities$NAME)
+#pivot the data
+city_obs <- pivot_longer(
+  city_obs, 
+  cols = everything(),  
+  names_to = "city", 
+  values_to = "observed"
+)
+
+city_sim <- pivot_longer(
+  city_sim, 
+  cols = everything(),  
+  names_to = "city", 
+  values_to = "simulated"
+)
+
+#adds time column
+city_obs$time <- rep(time(obs_temp_raster), times = 10)
+city_sim$time <- rep(time(nc_raster_celsius), times = 10)
+print(dim(city_obs))  
+print(dim(city_sim))  
+print(colnames(city_obs))
+print(colnames(city_sim))
+
+```
+
+
+**5c.** Notice that the modeled and observed rasters have used slightly different conventions for naming the months. You can see this in the "name" column of the two data frames you made in 5b. The model output uses the first of the month (e.g. 1991.02.01) whereas the observational data uses the middle of the month (e.g. 1991.01.16). This is a problem since we want to merge together the two data frames to compare observed and simulated data.
+
+To merge the two data frames together, first we need to "chop off" the last two digits in the month ids in both data frames. One way to do this is to use the substr() function to return some subset of a character vector.
+
+change the variable "time" from Date to "yearmon" (character)
+
+
+
+```{r}
+library(zoo)  
+
+#convert time to yearmon format by extracting only YYYY-MM
+city_obs$time <- as.yearmon(substr(as.character(city_obs$time), 1, 7))
+city_sim$time <- as.yearmon(substr(as.character(city_sim$time), 1, 7))
+print(head(city_obs$time))
+print(head(city_sim$time))
+
+```
+
+**5d.** Merge the observed and modeled city data into a single data-frame. In this case you could use `cbind`, but that it is safer to use `merge`
+
+```{r}
+#merges observed and simulated data using "city" and "time" as keys
+city_data <- merge(city_obs, city_sim, by = c("city", "time"))
+print(dim(city_data))  
+print(colnames(city_data))
+head(city_data)
+
+```
+
+
+
+
+
+**5e.** Make a plot showing observed vs modeled temperature for the 10 cities. Add a 1:1 line which showing the exact match between observed and modeled data. You can use base plot or ggplot.
+
+```{r}
+library(ggplot2)
+
+#scatter plot
+ggplot(city_data, aes(x = observed, y = simulated, color = city)) +
+  geom_point(alpha = 0.7) +  
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black") +  
+  labs(
+    
+    
+    title = "Observed vs. Modeled Temperature",
+    x = "Observed Temperature (°C)",
+    y = "Modeled Temperature (°C)",
+    color = "City"
+  ) +
+  theme_minimal()  
+
+```
+
+
+#Part 2
+
+In the second part of the lab, we will use projections of future temperature change (until 2080) and a map of the distribution of population in 2020 to get global, population-weighted projected warming.
+
+6a. Read in the netCDF file with projected climate model temperature (in the "Climate Model Data_Future" directory) as a SpatRaster. Use the rotate() function again as you did in 1b to transform the coordinates to -180 to 180 and the units to C. Use `subds="TREFHT"`. This has gridded projections of monthly global temperature between 2006 and 2020 under a high-emissions scenario (referred to as RCP8.5).
+
+```{r}
+library(terra)
+
+#future temperature raster loaded
+future_temp_raster <- rast("/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Climate Model Data_Future/b.e11.BRCP85C5CNBDRD.f09_g16.002.cam.h0.TREFHT.200601-208012.nc", 
+                           subds = "TREFHT")
+
+#rotates raster to fix longitude
+future_temp_raster <- rotate(future_temp_raster)
+print(future_temp_raster)
+
+```
+
+
+
+
+
+6b. Compute the projected _annual_ trend in global climate. Use `tapp` for this temporal aggregation.
+
+```{r}
+#computes annual mean temperature using tapp()
+annual_temp_raster <- tapp(future_temp_raster, index = "years", fun = mean)
+print(annual_temp_raster)
+
+```
+
+7a. Read in the netCDF data on population in the "Population" directory as a SpatRaster. (There is only one variable in this netCDF, so you do not need to specify the variable name this time). This is gridded population count at 15 arc minute resolution.
+
+```{r}
+
+library(terra)
+pop_file <- "/Users/hectorsmacbookpro/Documents/School/ESP 106/Labs/LAB7/Data/Population/gpw_v4_population_count_adjusted_rev11_15_min.nc"
+
+#reads the netCDF file as a SpatRaster
+pop_raster <- rast(pop_file)
+print(pop_raster)
+
+```
+
+7b. We want only the 5th layer in this SpatRaster, which corresponds to population count in 2020. (Note - I know this from some associated files that came with the netCDF file. Take a look at the csv file in the directory to see this documentation). Pull out just the population in 2020.
+
+```{r}
+#extracts the 5th layer 
+pop_2020 <- pop_raster[[5]]
+print(pop_2020)
+
+
+```
+
+8a. Now we want to eventually match the population grid to the projected temperature grid. But the problem is that the grid size of the climate model is much larger than the grid size of the population data. How many rows and columns does the climate model data have? And how many rows and columns does the population data have? Use code to show that.
+
+```{r}
+print(dim(future_temp_raster))  
+print(dim(pop_2020))  
+
+```
+Answer
+From the output, the climate model data has 192 rows and 288 columns. The the population data has 720 rows and 1440 columns which means that the population data has a much finer resolution. 
+
+
+8b. To fix this problem we can aggregate the population raster up to the resolution of the climate model using the aggregate() function. The population data you have is the population count (i.e. number of people in each grid cell). What function should we use to aggregate to larger grid cells? What function would we use instead if we had population density data instead of population count?
+
+**Answer:**
+For population count you can use the sum functions and for for population density you can use the mean function.
+
+8c. Aggregate the population data to a higher level of resolution, as close as possible to the climate model data.
+
+```{r}
+
+#aggregating he population data to match climate model resolution
+pop_aggregated <- aggregate(pop_2020, fact = c(4,5), fun = "sum")  
+print(dim(pop_aggregated))  
+print(dim(future_temp_raster))  
+
+```
+
+8d. If everything has gone according to plan, we would expect that summing up all the cells in the population SpatRaster should give us something close to the current population on the planet. Calculate that sum from your aggregated population data and compare to the total population today.
+
+```{r}
+#computes the total population from the aggregated raster
+total_population <- global(pop_aggregated, fun = "sum", na.rm = TRUE)
+print(total_population)
+
+
+current_world_population <- 8000000000  
+difference <- abs(total_population - current_world_population)
+print(paste("Difference from current world population:", difference))
+
+
+```
+
+**Answer:**
+
+9a. Now we will use the population data to do a weighted averaging of the projected temperature data, to get the monthly temperature experienced by the average person between 2006 and 2080. 
+
+One problem is that even after the aggregation, the grids of the population data still don't quite match. Use terra::resample() to resample the aggregated population data to the climate model grid. 
+
+```{r}
+library(terra)
+
+#resamples the aggregated population raster 
+pop_resampled <- resample(pop_aggregated, future_temp_raster, method = "bilinear")
+print(dim(pop_resampled))
+print(dim(future_temp_raster))
+
+```
+
+9b. Now we can use the population SpatRaster to do a weighted average of the climate model data. Use the global() function to calculate both the global and and the population-weighted average temperature for each year. 
+
+```{r}
+global_temp <- global(future_temp_raster, fun = "mean", na.rm = TRUE)[,1]  
+
+#computes the population-weighted mean temperature
+pop_weighted_temp <- (global(future_temp_raster * pop_resampled, fun = "sum", na.rm = TRUE)[,1]) / 
+                     (global(pop_resampled, fun = "sum", na.rm = TRUE)[,1])
+
+# had to make sure to convert to data frame for plotting
+years <- 2006:2080  
+temp_data <- data.frame(Year = years, 
+                        Global_Temperature = global_temp, 
+                        Pop_Weighted_Temperature = pop_weighted_temp)
+
+head(temp_data)
+
+
+```
+
+
+Make a graph showing the projected annual trend in global climate. On the same graph show the temperature trend for the entire world, and weighted by population. 
+
+```{r}
+library(ggplot2)
+
+ggplot(temp_data, aes(x = Year)) +
+  geom_line(aes(y = Global_Temperature, color = "Global Mean"), size = 1) +
+  geom_line(aes(y = Pop_Weighted_Temperature, color = "Pop-Weighted Mean"), size = 1) +
+  labs(title = "Projected Annual Global Temperature Trends (2006-2080)",
+       x = "Year",
+       y = "Temperature (°C)") +
+  scale_color_manual(values = c("Global Mean" = "blue", "Pop-Weighted Mean" = "red")) +
+  theme_minimal()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
